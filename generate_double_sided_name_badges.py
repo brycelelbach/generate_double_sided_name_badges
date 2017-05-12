@@ -12,46 +12,50 @@ from sys import exit
 
 from optparse import OptionParser
 
-import codecs
+from unicodecsv import writer as csv_writer
+from unicodecsv import reader as csv_reader
+
+output_keys = ["First Name", "Last Name", "Conversation Starter", "Attending"] 
 
 op = OptionParser(usage="%prog [input-data] [output-data]")
 args = op.parse_args()[1]
 
-if len(args) != 2:
+if len(args) != 1 and len(args) != 2:
     op.print_help()
     exit(1)
 
-input_data = codecs.open(args[0], 'r', "utf-8")
-output_data = codecs.open(args[1], 'w', "utf-8")
+input_data = csv_reader(open(args[0], "r"), encoding="utf-8")
+
+if len(args) == 1:
+    output_data = csv_writer(stdout, encoding="utf-8")
+else:
+    output_data = csv_writer(open(args[1], "w"), encoding="utf-8")
 
 # Maps column names to indices 
 legend = {}
+num_fields = None
 
 attendees = []
 
 try:
     # Read the header
-    header_line = input_data.next()
+    header_row = input_data.next()
 
-    header_row = header_line.split(',')
+    num_fields = len(header_row)
 
     for i in range(0, len(header_row)):
         legend[header_row[i]] = i 
-    
+
+    # Read the data    
     while True:
-        line = unicode(input_data.next())
+        row = input_data.next()
 
-        # Look for comments 
-        if '#' == line[0]:
-            continue
+        if num_fields != len(row):
+            print "ERROR: Record " + str(row) + " does not have " + \
+                  str(num_fields) + " fields."
+            exit(1)
 
-        # Look for blank lines
-        if line == "\n":
-            continue
-
-        row = line.split(',')
-
-        attendees.append((row[legend["First Name"]], row[legend["Last Name"]]))
+        attendees.append(row)
 
 except StopIteration:
     pass
@@ -62,7 +66,7 @@ attendees = sorted(attendees)
 # Pad attendees with blank entries to ensure its length is divisible by 10.
 if 0 != (len(attendees) % 6):
     for i in range(0, 6 - (len(attendees) % 6)):
-        attendees.append(("",""))
+        attendees.append([""] * num_fields)
 
 double_sided_attendees = []
 
@@ -73,7 +77,7 @@ double_sided_attendees = []
 # C D -> C D  D C
 # E F    E F  F E
 for i in range(0, len(attendees) / 6):
-    page = attendees[i * 6:i * 6 + 6]
+    page = attendees[i * 6 : i * 6 + 6]
 
     double_page = [ \
         # Front side
@@ -90,12 +94,14 @@ for i in range(0, len(attendees) / 6):
 
 # Output the attendee list. We add a new field - a unique identifier, the
 # entry's index in the list - to keep Avery's software from ignoring the empty
-# padding entries.
+# padding entries on the last page.
 
 # Output the header.
-print >> output_data, "UID,First Name,Last Name"
+output_data.writerow(["UID"] + output_keys)
 
 # Output the attendees
 for uid, attendee in enumerate(double_sided_attendees):
-    print >> output_data, ("%d,%s,%s" % tuple([uid] + list(attendee)))
+    output_data.writerow(
+        [uid] + list(attendee[legend[key]] for key in output_keys)
+    )
 
