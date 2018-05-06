@@ -8,28 +8,35 @@
 # file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ###############################################################################
 
-from sys import exit
+from sys import exit, stdout
 
 from optparse import OptionParser
 
 from unicodecsv import writer as csv_writer
 from unicodecsv import reader as csv_reader
 
-output_keys = ["First Name", "Last Name", "Conversation Starter", "Attending"] 
+from operator import itemgetter
 
-op = OptionParser(usage="%prog [input-data] [output-data]")
+output_keys = {
+  "CppCon" : ["First Name", "Last Name", "Conversation Starter", "Attending"],
+  "C++Now" : ["First Name", "Last Name"]
+}
+
+op = OptionParser(usage="%prog <conference> <input-data> [output-data]")
 args = op.parse_args()[1]
 
-if len(args) != 1 and len(args) != 2:
+if len(args) != 2 and len(args) != 3:
     op.print_help()
     exit(1)
 
-input_data = csv_reader(open(args[0], "r"), encoding="utf-8")
+conference = args[0]
 
-if len(args) == 1:
+input_data = csv_reader(open(args[1], "r"), encoding="utf-8")
+
+if len(args) == 2:
     output_data = csv_writer(stdout, encoding="utf-8")
 else:
-    output_data = csv_writer(open(args[1], "w"), encoding="utf-8")
+    output_data = csv_writer(open(args[2], "w"), encoding="utf-8")
 
 # Maps column names to indices 
 legend = {}
@@ -61,7 +68,7 @@ except StopIteration:
     pass
 
 # Sort the attendees alphabetically by first name
-attendees = sorted(attendees)
+attendees = sorted(attendees, key=itemgetter(*list(legend[key] for key in output_keys[conference])))
 
 # Pad attendees with blank entries to ensure its length is divisible by 10.
 if 0 != (len(attendees) % 6):
@@ -97,11 +104,11 @@ for i in range(0, len(attendees) / 6):
 # padding entries on the last page.
 
 # Output the header.
-output_data.writerow(["UID"] + output_keys)
+output_data.writerow(["UID"] + output_keys[conference])
 
 # Output the attendees
 for uid, attendee in enumerate(double_sided_attendees):
     output_data.writerow(
-        [uid] + list(attendee[legend[key]] for key in output_keys)
+        [uid] + list(attendee[legend[key]] for key in output_keys[conference])
     )
 
